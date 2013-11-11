@@ -185,6 +185,16 @@ func (f *Force) Get(url string) (object ForceRecord, err error) {
 	return
 }
 
+func (f *Force) GetServices() (object map[string]string, err error) {
+	url := fmt.Sprintf("%s/services/data/%s", f.Credentials.InstanceUrl, apiVersion)
+	body, err := f.httpGet(url)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(body, &object)
+	return
+}
+
 func (f *Force) GetRecord(sobject, id string) (object ForceRecord, err error) {
 	url := fmt.Sprintf("%s/services/data/%s/sobjects/%s/%s", f.Credentials.InstanceUrl, apiVersion, sobject, id)
 	body, err := f.httpGet(url)

@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 )
 
 var cmdLogin = &Command{
@@ -18,22 +21,52 @@ Examples:
 }
 
 func runLogin(cmd *Command, args []string) {
+	creds, err := resolveForceCredentials(args)
+	if err != nil {
+		ErrorAndExit(err.Error())
+	}
+
+	_, err = SaveForceCredentials(creds)
+	if err != nil {
+		ErrorAndExit(err.Error())
+	}
+}
+
+func resolveForceCredentials(args []string) (creds ForceCredentials, err error) {
 	var endpoint ForceEndpoint
-	endpoint = EndpointProduction
-	if len(args) > 0 {
+	switch len(args) {
+	default:
+		err = errors.New("invaild number of arguments")
+	case 2:
+		creds.InstanceUrl = args[0]
+		if !strings.HasPrefix(creds.InstanceUrl, "http") {
+			creds.InstanceUrl = "https://" + creds.InstanceUrl
+		}
+		creds.AccessToken = args[1]
+		if !strings.HasPrefix(creds.AccessToken, "00D") {
+			err = errors.New("invaild access token")
+		}
+		force := NewForce(creds)
+		var services map[string]string
+		services, err = force.GetServices()
+		if err != nil {
+			return
+		}
+		creds.Id = services["identity"]
+	case 1:
 		switch args[0] {
 		case "test":
 			endpoint = EndpointTest
 		case "pre":
 			endpoint = EndpointPrerelease
 		default:
-			ErrorAndExit("no such endpoint: %s", args[0])
+			err = errors.New(fmt.Sprintf("no such endpoint: %s", args[0]))
 		}
+		fallthrough
+	case 0:
+		creds, err = ForceLogin(endpoint)
 	}
-	_, err := ForceLoginAndSave(endpoint)
-	if err != nil {
-		ErrorAndExit(err.Error())
-	}
+	return
 }
 
 var cmdLogout = &Command{
@@ -66,6 +99,10 @@ func ForceLoginAndSave(endpoint ForceEndpoint) (username string, err error) {
 	if err != nil {
 		return
 	}
+	return SaveForceCredentials(creds)
+}
+
+func SaveForceCredentials(creds ForceCredentials) (username string, err error) {
 	force := NewForce(creds)
 	login, err := force.Get(creds.Id)
 	if err != nil {
